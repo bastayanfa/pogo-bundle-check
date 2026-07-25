@@ -1,9 +1,10 @@
-const CACHE = 'bundle-value-check-v4';
+const CACHE = 'bundle-value-check-v5';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icons/favicon.png',
+  './background.jpg',
 ];
 
 self.addEventListener('install', (event) => {
