@@ -223,12 +223,17 @@
   }
   .finder-result-row {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    flex-direction: column;
+    gap: 4px;
     padding: 10px 12px;
     background: var(--panel-2);
     border: 1px solid var(--line);
     border-radius: 8px;
+  }
+  .finder-result-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
   }
   .finder-result-row .label {
     font-size: 14px;
@@ -241,6 +246,11 @@
     color: var(--text);
   }
   .finder-result-row.win .value { color: var(--good); }
+  .finder-result-detail {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
 
   .preset-panel-title {
     font-size: 13px;
@@ -323,12 +333,18 @@
 
   <div class="panel finder-result" id="finder-result-panel" hidden>
     <div class="finder-result-row" id="finder-via-coins-row">
-      <span class="label" id="finder-via-coins-label">Items via Coins</span>
-      <span class="value" id="finder-via-coins">—</span>
+      <div class="finder-result-main">
+        <span class="label" id="finder-via-coins-label">Items via Coins</span>
+        <span class="value" id="finder-via-coins">—</span>
+      </div>
+      <div class="finder-result-detail" id="finder-via-coins-detail"></div>
     </div>
     <div class="finder-result-row" id="finder-via-cash-row">
-      <span class="label" id="finder-via-cash-label">Items via Cash</span>
-      <span class="value" id="finder-via-cash">—</span>
+      <div class="finder-result-main">
+        <span class="label" id="finder-via-cash-label">Items via Cash</span>
+        <span class="value" id="finder-via-cash">—</span>
+      </div>
+      <div class="finder-result-detail" id="finder-via-cash-detail"></div>
     </div>
   </div>
 
@@ -543,9 +559,11 @@
   const finderViaCoinsEl = document.getElementById('finder-via-coins');
   const finderViaCoinsRow = document.getElementById('finder-via-coins-row');
   const finderViaCoinsLabelEl = document.getElementById('finder-via-coins-label');
+  const finderViaCoinsDetailEl = document.getElementById('finder-via-coins-detail');
   const finderViaCashEl = document.getElementById('finder-via-cash');
   const finderViaCashRow = document.getElementById('finder-via-cash-row');
   const finderViaCashLabelEl = document.getElementById('finder-via-cash-label');
+  const finderViaCashDetailEl = document.getElementById('finder-via-cash-detail');
 
   function renderFinder() {
     const coin1 = parseFloat(finderInputs['finder-coin1'].value);
@@ -576,6 +594,28 @@
 
     finderViaCoinsEl.textContent = viaCoins !== null ? viaCoins : '—';
     finderViaCashEl.textContent = viaCash !== null ? viaCash : '—';
+
+    // Buying the coin pack always costs its full cash price up front,
+    // whatever's left over after spending coins on the item just sits
+    // in your account as leftover coins (not leftover cash).
+    if (viaCoins !== null) {
+      const leftoverCoins = coin1 - Math.floor(coin1 / coin2) * coin2;
+      finderViaCoinsDetailEl.textContent =
+        `Spent ${fmt(thb1)} Cash • ${fmt(leftoverCoins)} Coins left over`;
+    } else {
+      finderViaCoinsDetailEl.textContent = '';
+    }
+
+    // Buying the item directly only spends whole bundles of thb3, so
+    // some of the cash budget can end up unspent.
+    if (viaCash !== null) {
+      const cashSpent = Math.floor(thb1 / thb3) * thb3;
+      const leftoverCash = thb1 - cashSpent;
+      finderViaCashDetailEl.textContent =
+        `Spent ${fmt(cashSpent)} Cash • ${fmt(leftoverCash)} Cash left over`;
+    } else {
+      finderViaCashDetailEl.textContent = '';
+    }
 
     finderViaCoinsRow.classList.remove('win');
     finderViaCashRow.classList.remove('win');
