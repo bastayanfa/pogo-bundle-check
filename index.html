@@ -242,6 +242,44 @@
   }
   .finder-result-row.win .value { color: var(--good); }
 
+  .preset-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .preset-list { display: flex; flex-direction: column; gap: 8px; }
+  .preset-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .preset-row .preset-label {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .preset-use-btn {
+    flex-shrink: 0;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  .preset-use-btn:hover { border-color: var(--accent); }
+  .preset-use-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   [hidden] { display: none !important; }
 </style>
 
@@ -273,25 +311,35 @@
     </div>
     <div class="finder-row">
       <span class="finder-label">Item via Coins</span>
-      <input type="number" id="finder-item2" placeholder="Item amount" value="99" min="0" inputmode="numeric" />
-      <input type="number" id="finder-coin2" placeholder="PokéCoins" value="5425" min="0" inputmode="numeric" />
+      <input type="number" id="finder-item2" placeholder="Item amount" value="3" min="0" inputmode="numeric" />
+      <input type="number" id="finder-coin2" placeholder="PokéCoins" value="250" min="0" inputmode="numeric" />
     </div>
     <div class="finder-row">
       <span class="finder-label">Item via Cash</span>
-      <input type="number" id="finder-item3" placeholder="Item amount" value="99" min="0" inputmode="numeric" />
-      <input type="number" id="finder-thb3" placeholder="Cash" value="769" min="0" inputmode="numeric" />
+      <input type="number" id="finder-item3" placeholder="Item amount" value="3" min="0" inputmode="numeric" />
+      <input type="number" id="finder-thb3" placeholder="Cash" value="59" min="0" inputmode="numeric" />
     </div>
   </div>
 
   <div class="panel finder-result" id="finder-result-panel" hidden>
     <div class="finder-result-row" id="finder-via-coins-row">
-      <span class="label">Items per Cash — via Coins</span>
+      <span class="label" id="finder-via-coins-label">Items via Coins</span>
       <span class="value" id="finder-via-coins">—</span>
     </div>
     <div class="finder-result-row" id="finder-via-cash-row">
-      <span class="label">Items per Cash — via Cash</span>
+      <span class="label" id="finder-via-cash-label">Items via Cash</span>
       <span class="value" id="finder-via-cash">—</span>
     </div>
+  </div>
+
+  <div class="panel" id="preset-coins-panel" hidden>
+    <div class="preset-panel-title">Item via Coins &mdash; saved packages</div>
+    <div class="preset-list" id="preset-coins-list"></div>
+  </div>
+
+  <div class="panel" id="preset-cash-panel" hidden>
+    <div class="preset-panel-title">Item via Cash &mdash; saved packages</div>
+    <div class="preset-list" id="preset-cash-list"></div>
   </div>
 </div>
 
@@ -350,6 +398,8 @@
   const tablePanel = document.getElementById('table-panel');
   const finderInputsPanel = document.getElementById('finder-inputs-panel');
   const finderResultPanel = document.getElementById('finder-result-panel');
+  const presetCoinsPanel = document.getElementById('preset-coins-panel');
+  const presetCashPanel = document.getElementById('preset-cash-panel');
 
   function selectTab(key) {
     current = key;
@@ -360,6 +410,8 @@
     tablePanel.hidden = isFinder;
     finderInputsPanel.hidden = !isFinder;
     finderResultPanel.hidden = !isFinder;
+    presetCoinsPanel.hidden = !isFinder;
+    presetCashPanel.hidden = !isFinder;
 
     if (isFinder) {
       renderFinder();
@@ -474,22 +526,26 @@
   }
 
   // --- Value Finder tab ---
-  // Row1 "Best Coin Pack": Coins + Cash -> coins-per-cash rate for the pack
-  //   you're planning to buy.
+  // Row1 "Best Coin Pack": Coins + Cash -> the pack you're planning to
+  //   buy. Its cash price also sets the budget for a fair comparison.
   // Row2 "Item via Coins": how many of some item (not necessarily Raid
   //   Passes) a given amount of coins buys.
   // Row3 "Item via Cash": how many of that same item you can buy with cash
   //   directly, skipping coins entirely.
-  // Result: normalize both routes to "items obtainable per cash spent" so
-  // they're directly comparable regardless of which route you're pricing.
+  // Result: spend that same cash budget both ways - buy the coin pack
+  // then spend all the coins on the item, vs spend the cash on the item
+  // directly - and show the whole items (no partial bundles) you'd walk
+  // away with each way.
   const finderIds = ['finder-coin1', 'finder-thb1', 'finder-item2', 'finder-coin2', 'finder-item3', 'finder-thb3'];
   const finderInputs = {};
   finderIds.forEach(id => { finderInputs[id] = document.getElementById(id); });
   const finderRatio1El = document.getElementById('finder-ratio1');
   const finderViaCoinsEl = document.getElementById('finder-via-coins');
   const finderViaCoinsRow = document.getElementById('finder-via-coins-row');
+  const finderViaCoinsLabelEl = document.getElementById('finder-via-coins-label');
   const finderViaCashEl = document.getElementById('finder-via-cash');
   const finderViaCashRow = document.getElementById('finder-via-cash-row');
+  const finderViaCashLabelEl = document.getElementById('finder-via-cash-label');
 
   function renderFinder() {
     const coin1 = parseFloat(finderInputs['finder-coin1'].value);
@@ -502,13 +558,24 @@
     const coinRate = (coin1 > 0 && thb1 > 0) ? coin1 / thb1 : null; // coins per cash
     finderRatio1El.textContent = coinRate !== null ? fmt(coinRate) : '—';
 
-    const itemPerCoin = (item2 > 0 && coin2 > 0) ? item2 / coin2 : null;
-    const viaCoins = (coinRate !== null && itemPerCoin !== null) ? coinRate * itemPerCoin : null;
+    // Via coins: buy the pack (coin1 coins), then spend them on the item
+    // in whole bundles of coin2.
+    const viaCoins = (coin1 > 0 && item2 > 0 && coin2 > 0)
+      ? Math.floor(coin1 / coin2) * item2
+      : null;
 
-    const viaCash = (item3 > 0 && thb3 > 0) ? item3 / thb3 : null;
+    // Via cash: spend that same cash budget (thb1) on the item directly,
+    // in whole bundles of thb3.
+    const viaCash = (thb1 > 0 && item3 > 0 && thb3 > 0)
+      ? Math.floor(thb1 / thb3) * item3
+      : null;
 
-    finderViaCoinsEl.textContent = viaCoins !== null ? fmt(viaCoins) : '—';
-    finderViaCashEl.textContent = viaCash !== null ? fmt(viaCash) : '—';
+    const budgetLabel = thb1 > 0 ? ` for ${fmt(thb1)} Cash` : '';
+    finderViaCoinsLabelEl.textContent = `Items via Coins${budgetLabel}`;
+    finderViaCashLabelEl.textContent = `Items via Cash${budgetLabel}`;
+
+    finderViaCoinsEl.textContent = viaCoins !== null ? viaCoins : '—';
+    finderViaCashEl.textContent = viaCash !== null ? viaCash : '—';
 
     finderViaCoinsRow.classList.remove('win');
     finderViaCashRow.classList.remove('win');
@@ -517,6 +584,57 @@
       else if (viaCash > viaCoins) finderViaCashRow.classList.add('win');
     }
   }
+
+  // Saved packages: common bundles for rows 2 and 3, so they don't need
+  // retyping every time. Editing these requires updating this file
+  // directly - ask for an update when a new package needs adding.
+  const coinPackagePresets = [
+    { item: 3, coin: 250 },
+    { item: 99, coin: 5425 },
+  ];
+  const cashPackagePresets = [
+    { item: 3, thb: 59 },
+    { item: 99, thb: 769 },
+  ];
+
+  const presetCoinsListEl = document.getElementById('preset-coins-list');
+  const presetCashListEl = document.getElementById('preset-cash-list');
+
+  function renderPresets() {
+    presetCoinsListEl.innerHTML = '';
+    coinPackagePresets.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'preset-row';
+      row.innerHTML = `
+        <span class="preset-label">${p.item} : ${p.coin}</span>
+        <button class="preset-use-btn" type="button">Use</button>
+      `;
+      row.querySelector('.preset-use-btn').addEventListener('click', () => {
+        finderInputs['finder-item2'].value = p.item;
+        finderInputs['finder-coin2'].value = p.coin;
+        renderFinder();
+      });
+      presetCoinsListEl.appendChild(row);
+    });
+
+    presetCashListEl.innerHTML = '';
+    cashPackagePresets.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'preset-row';
+      row.innerHTML = `
+        <span class="preset-label">${p.item} : ${p.thb}</span>
+        <button class="preset-use-btn" type="button">Use</button>
+      `;
+      row.querySelector('.preset-use-btn').addEventListener('click', () => {
+        finderInputs['finder-item3'].value = p.item;
+        finderInputs['finder-thb3'].value = p.thb;
+        renderFinder();
+      });
+      presetCashListEl.appendChild(row);
+    });
+  }
+
+  renderPresets();
 
   finderIds.forEach(id => finderInputs[id].addEventListener('input', renderFinder));
   renderFinder();
