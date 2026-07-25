@@ -597,20 +597,26 @@
 
     // Buying the coin pack always costs its full cash price up front,
     // whatever's left over after spending coins on the item just sits
-    // in your account as leftover coins (not leftover cash).
+    // in your account as leftover coins (not leftover cash). Convert
+    // that leftover to a cash-equivalent using the pack's own rate, so
+    // it can be weighed against the cash route's leftover cash below.
+    let leftoverCoinsValue = null;
     if (viaCoins !== null) {
       const leftoverCoins = coin1 - Math.floor(coin1 / coin2) * coin2;
+      leftoverCoinsValue = coinRate !== null ? leftoverCoins / coinRate : null;
+      const worthText = leftoverCoinsValue !== null ? ` (≈ ${fmt(leftoverCoinsValue)} Cash worth)` : '';
       finderViaCoinsDetailEl.textContent =
-        `Spent ${fmt(thb1)} Cash • ${fmt(leftoverCoins)} Coins left over`;
+        `Spent ${fmt(thb1)} Cash • ${fmt(leftoverCoins)} Coins left over${worthText}`;
     } else {
       finderViaCoinsDetailEl.textContent = '';
     }
 
     // Buying the item directly only spends whole bundles of thb3, so
     // some of the cash budget can end up unspent.
+    let leftoverCash = null;
     if (viaCash !== null) {
       const cashSpent = Math.floor(thb1 / thb3) * thb3;
-      const leftoverCash = thb1 - cashSpent;
+      leftoverCash = thb1 - cashSpent;
       finderViaCashDetailEl.textContent =
         `Spent ${fmt(cashSpent)} Cash • ${fmt(leftoverCash)} Cash left over`;
     } else {
@@ -620,8 +626,17 @@
     finderViaCoinsRow.classList.remove('win');
     finderViaCashRow.classList.remove('win');
     if (viaCoins !== null && viaCash !== null) {
-      if (viaCoins > viaCash) finderViaCoinsRow.classList.add('win');
-      else if (viaCash > viaCoins) finderViaCashRow.classList.add('win');
+      if (viaCoins > viaCash) {
+        finderViaCoinsRow.classList.add('win');
+      } else if (viaCash > viaCoins) {
+        finderViaCashRow.classList.add('win');
+      } else if (leftoverCoinsValue !== null && leftoverCash !== null) {
+        // Same item count either way - break the tie by whichever
+        // leftover (coins converted to cash, vs actual leftover cash)
+        // is worth more.
+        if (leftoverCoinsValue > leftoverCash) finderViaCoinsRow.classList.add('win');
+        else if (leftoverCash > leftoverCoinsValue) finderViaCashRow.classList.add('win');
+      }
     }
   }
 

@@ -1,4 +1,4 @@
-const CACHE = 'bundle-value-check-v8';
+const CACHE = 'bundle-value-check-v9';
 const ASSETS = [
   './',
   './index.html',
